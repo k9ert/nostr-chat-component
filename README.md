@@ -33,9 +33,9 @@ Einfach die Komponente in Ihre HTML-Seite einbinden:
 <script type="module" src="path/to/nostr-chat.js"></script>
 
 <!-- Verwendung mit minimaler Konfiguration -->
-<nostr-chat 
-  relay="wss://relay.damus.io" 
-  channel="ottobrunner-hofflohmarkt-2025">
+<nostr-chat
+  relay="wss://relay.damus.io"
+  channel="nostr-chat-component-demo">
 </nostr-chat>
 ```
 

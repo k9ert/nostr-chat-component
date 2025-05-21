@@ -45,7 +45,7 @@ export const MAX_RECONNECT_ATTEMPTS = 5;
 // Standardwerte für die Komponente
 export const DEFAULT_SETTINGS = {
   relay: 'wss://relay.damus.io',
-  channel: 'default-channel',
+  channel: 'nostr-chat-component-demo',
   theme: 'light',
   showAvatars: true,
   maxMessages: 50

@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "web-dev-server --node-resolve --open demo/ --watch",
     "build": "rollup -c",
-    "test": "web-test-runner test/**/*.test.js --node-resolve",
+    "test": "web-test-runner --config web-test-runner.config.js",
+    "test:watch": "web-test-runner --config web-test-runner.config.js --watch",
     "lint": "eslint src/**/*.js",
     "format": "prettier --write src/**/*.js",
     "start": "npm run dev"
@@ -22,15 +23,20 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "lit": "^2.7.0"
+    "@noble/hashes": "^1.8.0",
+    "lit": "^2.7.0",
+    "nostr-tools": "^2.13.0"
   },
   "devDependencies": {
     "@open-wc/testing": "^3.1.7",
     "@rollup/plugin-node-resolve": "^15.0.2",
     "@rollup/plugin-terser": "^0.4.0",
     "@web/dev-server": "^0.1.35",
+    "@web/dev-server-esbuild": "^1.0.4",
     "@web/test-runner": "^0.15.1",
+    "@web/test-runner-playwright": "^0.11.0",
     "eslint": "^8.38.0",
+    "playwright": "^1.52.0",
     "prettier": "^2.8.7",
     "rollup": "^3.20.2"
   }

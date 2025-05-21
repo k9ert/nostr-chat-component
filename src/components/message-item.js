@@ -35,11 +35,11 @@ export class MessageItem extends LitElement {
 
   updated(changedProperties) {
     if (
-      (changedProperties.has('message') || 
-       changedProperties.has('relayPool') || 
-       changedProperties.has('relays')) && 
-      this.message && 
-      this.relayPool && 
+      (changedProperties.has('message') ||
+       changedProperties.has('relayPool') ||
+       changedProperties.has('relays')) &&
+      this.message &&
+      this.relayPool &&
       this.relays.length > 0
     ) {
       this._loadProfileInfo();
@@ -56,7 +56,7 @@ export class MessageItem extends LitElement {
 
   _getMessageClasses() {
     const classes = ['chat-message'];
-    
+
     if (this.message.isSystemMessage || this.message.pubkey === 'system') {
       classes.push('system-message');
     } else if (this.message.pubkey === this.currentUserPubkey) {
@@ -64,24 +64,24 @@ export class MessageItem extends LitElement {
     } else {
       classes.push('others');
     }
-    
+
     return classes.join(' ');
   }
 
   _renderAvatar() {
     if (!this.showAvatars) return '';
-    
+
     const isSystemMessage = this.message.isSystemMessage || this.message.pubkey === 'system';
     if (isSystemMessage) return '';
-    
+
     const profilePicture = getProfilePicture(this.message);
     const displayName = getDisplayName(this.message);
     const initial = displayName.charAt(0).toUpperCase();
-    
+
     return html`
       <div class="avatar-container">
         <div class="avatar">
-          ${profilePicture 
+          ${profilePicture
             ? html`<img class="avatar-img" src="${profilePicture}" alt="${displayName}" @error=${this._handleAvatarError}>`
             : html`${initial}`}
         </div>
@@ -97,22 +97,22 @@ export class MessageItem extends LitElement {
 
   render() {
     if (!this.message) return html``;
-    
+
     const isSystemMessage = this.message.isSystemMessage || this.message.pubkey === 'system';
     const displayName = getDisplayName(this.message);
     const timestamp = formatTimestamp(this.message.created_at);
-    const content = isSystemMessage 
-      ? this.message.content 
+    const content = isSystemMessage
+      ? this.message.content
       : processMessageContent(this.message.content);
-    
+
     return html`
       <div class=${this._getMessageClasses()} data-event-id=${this.message.id} data-pubkey=${this.message.pubkey}>
-        ${isSystemMessage 
+        ${isSystemMessage
           ? html`
             <div class="message-content">
               <div class="message-text">${content}</div>
             </div>
-          ` 
+          `
           : html`
             <div class="message-container">
               ${this._renderAvatar()}
@@ -122,7 +122,7 @@ export class MessageItem extends LitElement {
                   <span class="timestamp">${timestamp}</span>
                 </div>
                 <div class="message-content">
-                  <div class="message-text">${html([content])}</div>
+                  <div class="message-text">${content}</div>
                 </div>
                 <div class="message-reactions"></div>
               </div>

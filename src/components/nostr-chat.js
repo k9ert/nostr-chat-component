@@ -17,7 +17,7 @@ export class NostrChat extends LitElement {
     showAvatars: { type: Boolean, attribute: 'show-avatars', reflect: true },
     maxMessages: { type: Number, attribute: 'max-messages', reflect: true },
     privateKey: { type: String, attribute: 'private-key' },
-    
+
     // Interne Properties
     messages: { type: Array, state: true },
     connected: { type: Boolean, state: true },
@@ -41,7 +41,7 @@ export class NostrChat extends LitElement {
     this.showAvatars = DEFAULT_SETTINGS.showAvatars;
     this.maxMessages = DEFAULT_SETTINGS.maxMessages;
     this.privateKey = '';
-    
+
     // Interne Zustände
     this.messages = [];
     this.connected = false;
@@ -65,11 +65,23 @@ export class NostrChat extends LitElement {
   }
 
   updated(changedProperties) {
+    console.log('[DEBUG] updated - changedProperties:', Array.from(changedProperties.keys()));
+
+    // Wenn wir gerade in der Initialisierungsphase sind, ignoriere Änderungen
+    if (this.loading) {
+      console.log('[DEBUG] updated - Ignoring changes during loading');
+      return;
+    }
+
+    // Wenn sich relay oder channel geändert haben, verbinde neu
     if (changedProperties.has('relay') || changedProperties.has('channel')) {
+      console.log('[DEBUG] updated - Reconnecting due to relay or channel change');
       this._reconnect();
     }
-    
+
+    // Wenn sich privateKey geändert hat und nicht leer ist, initialisiere mit dem neuen Schlüssel
     if (changedProperties.has('privateKey') && this.privateKey) {
+      console.log('[DEBUG] updated - Initializing with new private key');
       this._initWithPrivateKey();
     }
   }
@@ -77,23 +89,54 @@ export class NostrChat extends LitElement {
   async _initNostr() {
     try {
       this.loading = true;
-      
+      console.log('[DEBUG] _initNostr - START');
+
       // Initialisiere den Relay-Pool
       this.relayPool = initRelayPool();
-      
+      console.log('[DEBUG] _initNostr - Relay pool initialized');
+
       // Setze die Relays
       this.relays = [this.relay, ...DEFAULT_RELAYS.filter(r => r !== this.relay)];
-      
+      console.log('[DEBUG] _initNostr - Relays set:', this.relays);
+
       // Prüfe, ob ein privater Schlüssel übergeben wurde
+      console.log('[DEBUG] _initNostr - Checking privateKey:', this.privateKey);
+
+      // Initialisiere den privaten Schlüssel VOLLSTÄNDIG, bevor wir weitermachen
+      let keyInitialized = false;
+
       if (this.privateKey) {
-        await this._initWithPrivateKey();
-      } else {
+        console.log('[DEBUG] _initNostr - Using provided privateKey');
+        try {
+          await this._initWithPrivateKey();
+          keyInitialized = true;
+        } catch (error) {
+          console.error('[DEBUG] _initNostr - Error initializing with provided key:', error);
+          // Wenn die Initialisierung mit dem bereitgestellten Schlüssel fehlschlägt,
+          // versuchen wir es mit einem neuen Schlüssel
+        }
+      }
+
+      if (!keyInitialized) {
+        console.log('[DEBUG] _initNostr - Generating new key');
         await this._initWithNewKey();
       }
-      
-      // Verbinde mit dem Kanal
+
+      console.log('[DEBUG] _initNostr - Key initialized, privateKey:', this.privateKey ? 'set' : 'not set');
+      console.log('[DEBUG] _initNostr - userPublicKey:', this.userPublicKey);
+
+      // Prüfe, ob der private Schlüssel jetzt gesetzt ist
+      if (!this.privateKey) {
+        throw new Error('Private key is still empty after initialization');
+      }
+
+      // Verbinde mit dem Kanal ERST NACHDEM der Schlüssel vollständig initialisiert ist
+      console.log('[DEBUG] _initNostr - Connecting to channel');
       await this._connectToChannel();
-      
+      console.log('[DEBUG] _initNostr - Connected to channel');
+
+      // Setze loading auf false ERST NACHDEM alles initialisiert ist
+      console.log('[DEBUG] _initNostr - Initialization complete');
       this.loading = false;
     } catch (error) {
       console.error('Error initializing Nostr:', error);
@@ -104,8 +147,21 @@ export class NostrChat extends LitElement {
 
   async _initWithPrivateKey() {
     try {
+      // Fail fast: Prüfe sofort, ob der private Schlüssel leer ist
+      if (!this.privateKey) {
+        throw new Error('Private key is empty or undefined in _initWithPrivateKey');
+      }
+
+      // Stelle sicher, dass der private Schlüssel ein String ist
+      const privateKeyStr = String(this.privateKey);
+      console.log('[DEBUG] _initWithPrivateKey - privateKeyStr:', privateKeyStr);
+
       // Leite den öffentlichen Schlüssel aus dem privaten Schlüssel ab
-      this.userPublicKey = await getPublicKey(this.privateKey);
+      this.userPublicKey = getPublicKey(privateKeyStr);
+
+      // Aktualisiere den privaten Schlüssel als String
+      this.privateKey = privateKeyStr;
+
       console.log('Initialized with provided private key, public key:', this.userPublicKey);
     } catch (error) {
       console.error('Error initializing with private key:', error);
@@ -117,31 +173,64 @@ export class NostrChat extends LitElement {
 
   async _initWithNewKey() {
     try {
+      console.log('[DEBUG] _initWithNewKey - START');
+
       // Generiere ein neues Schlüsselpaar
       const { privateKey, publicKey } = await generateKeyPair();
+
+      console.log('[DEBUG] _initWithNewKey - Key pair generated');
+      console.log('[DEBUG] _initWithNewKey - privateKey type:', typeof privateKey);
+      console.log('[DEBUG] _initWithNewKey - privateKey length:', privateKey ? privateKey.length : 0);
+      console.log('[DEBUG] _initWithNewKey - publicKey:', publicKey);
+
+      // Fail fast: Prüfe sofort, ob der private Schlüssel leer ist
+      if (!privateKey) {
+        throw new Error('Generated private key is empty or undefined');
+      }
+
+      // Setze die Schlüssel
       this.privateKey = privateKey;
       this.userPublicKey = publicKey;
+
+      console.log('[DEBUG] _initWithNewKey - Keys set');
+      console.log('[DEBUG] _initWithNewKey - this.privateKey type:', typeof this.privateKey);
+      console.log('[DEBUG] _initWithNewKey - this.privateKey length:', this.privateKey ? this.privateKey.length : 0);
       console.log('Generated new key pair, public key:', this.userPublicKey);
+
+      // Prüfe, ob der private Schlüssel korrekt gesetzt wurde
+      if (!this.privateKey) {
+        throw new Error('Private key is still empty after setting it');
+      }
     } catch (error) {
       console.error('Error generating key pair:', error);
       this.error = `Error generating key pair: ${error.message}`;
+      throw error; // Wichtig: Gib den Fehler weiter, damit _initNostr ihn fangen kann
     }
   }
 
   async _connectToChannel() {
     try {
+      // Fail fast: Prüfe sofort, ob der private Schlüssel leer ist
+      if (!this.privateKey) {
+        throw new Error('Private key is empty or undefined in _connectToChannel');
+      }
+
+      // Stelle sicher, dass der private Schlüssel ein String ist
+      const privateKeyStr = String(this.privateKey);
+      console.log('[DEBUG] _connectToChannel - privateKeyStr:', privateKeyStr);
+
       // Erstelle oder finde den Kanal
       await createOrFindChannel(
         this.relayPool,
         this.relays,
         this.channel,
         this.userPublicKey,
-        this.privateKey
+        privateKeyStr
       );
-      
+
       // Abonniere den Kanal
       this._subscribeToChannel();
-      
+
       this.connected = true;
     } catch (error) {
       console.error('Error connecting to channel:', error);
@@ -155,7 +244,7 @@ export class NostrChat extends LitElement {
     if (this.subscription) {
       this.subscription.unsub();
     }
-    
+
     // Abonniere den Kanal
     this.subscription = subscribeToChannel(
       this.relayPool,
@@ -164,21 +253,21 @@ export class NostrChat extends LitElement {
       this.userPublicKey,
       true
     );
-    
+
     // Event-Handler für neue Events
     this.subscription.on('event', (event) => {
       this._processEvent(event);
     });
-    
+
     // Event-Handler für das Ende der Subscription
     this.subscription.on('eose', () => {
       console.log('End of stored events');
-      
+
       // Füge eine Willkommensnachricht hinzu, wenn keine Nachrichten vorhanden sind
       if (this.messages.length === 0) {
         this._addWelcomeMessage();
       }
-      
+
       this.loading = false;
     });
   }
@@ -188,10 +277,10 @@ export class NostrChat extends LitElement {
     if (this.processedEvents.has(event.id)) {
       return;
     }
-    
+
     // Füge das Event zur Liste der verarbeiteten Events hinzu
     this.processedEvents.add(event.id);
-    
+
     // Füge das Event zur Nachrichtenliste hinzu
     this._addMessage(event);
   }
@@ -199,7 +288,7 @@ export class NostrChat extends LitElement {
   _addMessage(event) {
     // Füge die Nachricht zur Liste hinzu
     this.messages = [...this.messages, event].sort((a, b) => a.created_at - b.created_at);
-    
+
     // Begrenze die Anzahl der Nachrichten
     if (this.messages.length > this.maxMessages) {
       this.messages = this.messages.slice(this.messages.length - this.maxMessages);
@@ -217,7 +306,7 @@ export class NostrChat extends LitElement {
       kind: 42,
       isSystemMessage: true
     };
-    
+
     // Füge die Willkommensnachricht hinzu
     this._addMessage(welcomeEvent);
   }
@@ -225,12 +314,21 @@ export class NostrChat extends LitElement {
   async _handleMessageSend(e) {
     try {
       const content = e.detail.message;
-      
+
+      // Fail fast: Prüfe sofort, ob der private Schlüssel leer ist
+      if (!this.privateKey) {
+        throw new Error('Private key is empty or undefined in _handleMessageSend');
+      }
+
+      // Stelle sicher, dass der private Schlüssel ein String ist
+      const privateKeyStr = String(this.privateKey);
+      console.log('[DEBUG] _handleMessageSend - privateKeyStr:', privateKeyStr);
+
       // Sende die Nachricht
       await sendMessage(
         content,
         this.userPublicKey,
-        this.privateKey,
+        privateKeyStr,
         this.channel,
         this.relayPool,
         this.relays
@@ -266,13 +364,13 @@ export class NostrChat extends LitElement {
           ?show-avatars=${this.showAvatars}
           ?loading=${this.loading}>
         </message-list>
-        
+
         <input-area
           placeholder="Nachricht eingeben..."
           ?disabled=${!this.connected || this.loading}
           @message-send=${this._handleMessageSend}>
         </input-area>
-        
+
         ${this.error ? html`<div class="error-message">${this.error}</div>` : ''}
       </div>
     `;
