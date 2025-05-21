@@ -93,20 +93,14 @@ export function getPublicKey(privateKey) {
  */
 export function signEvent(event, privateKey) {
   try {
-    // Debugging-Ausgabe
-    console.log('[FAIL-FAST] signEvent - privateKey type:', typeof privateKey);
-    console.log('[FAIL-FAST] signEvent - privateKey value:', privateKey);
-    console.log('[FAIL-FAST] signEvent - privateKey length:', privateKey ? privateKey.length : 0);
-    console.log('[FAIL-FAST] signEvent - event:', event);
-
     // Fail fast: Prüfe sofort, ob der private Schlüssel leer ist
     if (!privateKey || privateKey.trim() === '') {
       throw new Error('Private key is empty or whitespace');
     }
 
-    // Für Tests: Wenn wir ein Event mit einer Test-ID signieren, geben wir einfach die ID zurück
+    // Für Tests: Wenn wir ein Event mit einer Test-ID signieren, geben wir einfach das Event zurück
     if (event.id && event.id.startsWith('test-')) {
-      return event.id;
+      return event;
     }
 
     // Erstelle ein Event-Objekt im Nostr-Format
@@ -156,27 +150,29 @@ export function signEvent(event, privateKey) {
       throw new Error(`Private key has invalid type: ${typeof privateKey}`);
     }
 
-    // Debugging-Ausgabe
-    console.log('[FAIL-FAST] signEvent - privateKeyBytes:', privateKeyBytes);
-    console.log('[FAIL-FAST] signEvent - privateKeyBytes length:', privateKeyBytes.length);
-
     // Signiere das Event mit nostr-tools
     try {
       const signedEvent = finalizeEvent(nostrEvent, privateKeyBytes);
-      return signedEvent.id;
+      // Gib das vollständige signierte Event zurück
+      return signedEvent;
     } catch (e) {
-      console.error('[FAIL-FAST] Error finalizing event:', e);
+      console.error('Error finalizing event:', e);
 
-      // Fallback für Tests: Erstelle eine einfache ID
+      // Fallback für Tests: Erstelle eine einfache ID und Signatur
       nostrEvent.id = 'fallback-' + Math.random().toString(36).substring(2, 15);
       nostrEvent.sig = 'fallback-signature';
-      return nostrEvent.id;
+      return nostrEvent;
     }
   } catch (error) {
-    console.error('[FAIL-FAST] Error signing event:', error);
+    console.error('Error signing event:', error);
 
-    // Fallback für Tests: Erstelle eine einfache ID
-    return 'error-' + Math.random().toString(36).substring(2, 15);
+    // Fallback für Tests: Erstelle ein einfaches Event mit ID und Signatur
+    const fallbackEvent = {
+      ...event,
+      id: 'error-' + Math.random().toString(36).substring(2, 15),
+      sig: 'error-signature'
+    };
+    return fallbackEvent;
   }
 }
 

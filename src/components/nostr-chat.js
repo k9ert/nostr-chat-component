@@ -173,15 +173,8 @@ export class NostrChat extends LitElement {
 
   async _initWithNewKey() {
     try {
-      console.log('[DEBUG] _initWithNewKey - START');
-
       // Generiere ein neues Schlüsselpaar
       const { privateKey, publicKey } = await generateKeyPair();
-
-      console.log('[DEBUG] _initWithNewKey - Key pair generated');
-      console.log('[DEBUG] _initWithNewKey - privateKey type:', typeof privateKey);
-      console.log('[DEBUG] _initWithNewKey - privateKey length:', privateKey ? privateKey.length : 0);
-      console.log('[DEBUG] _initWithNewKey - publicKey:', publicKey);
 
       // Fail fast: Prüfe sofort, ob der private Schlüssel leer ist
       if (!privateKey) {
@@ -192,9 +185,6 @@ export class NostrChat extends LitElement {
       this.privateKey = privateKey;
       this.userPublicKey = publicKey;
 
-      console.log('[DEBUG] _initWithNewKey - Keys set');
-      console.log('[DEBUG] _initWithNewKey - this.privateKey type:', typeof this.privateKey);
-      console.log('[DEBUG] _initWithNewKey - this.privateKey length:', this.privateKey ? this.privateKey.length : 0);
       console.log('Generated new key pair, public key:', this.userPublicKey);
 
       // Prüfe, ob der private Schlüssel korrekt gesetzt wurde
@@ -240,10 +230,15 @@ export class NostrChat extends LitElement {
   }
 
   _subscribeToChannel() {
+    console.log('[DEBUG] _subscribeToChannel - START');
+
     // Beende bestehende Subscription
     if (this.subscription) {
+      console.log('[DEBUG] _subscribeToChannel - Unsubscribing from existing subscription');
       this.subscription.unsub();
     }
+
+    console.log('[DEBUG] _subscribeToChannel - Channel ID:', this.channel);
 
     // Abonniere den Kanal
     this.subscription = subscribeToChannel(
@@ -254,45 +249,78 @@ export class NostrChat extends LitElement {
       true
     );
 
+    console.log('[DEBUG] _subscribeToChannel - Subscription created:', this.subscription);
+
     // Event-Handler für neue Events
     this.subscription.on('event', (event) => {
+      console.log('[DEBUG] _subscribeToChannel - Event received:', event);
       this._processEvent(event);
     });
 
     // Event-Handler für das Ende der Subscription
     this.subscription.on('eose', () => {
-      console.log('End of stored events');
+      console.log('[DEBUG] _subscribeToChannel - End of stored events');
 
       // Füge eine Willkommensnachricht hinzu, wenn keine Nachrichten vorhanden sind
       if (this.messages.length === 0) {
+        console.log('[DEBUG] _subscribeToChannel - No messages, adding welcome message');
         this._addWelcomeMessage();
+      } else {
+        console.log('[DEBUG] _subscribeToChannel - Messages found:', this.messages.length);
       }
 
       this.loading = false;
+      console.log('[DEBUG] _subscribeToChannel - Loading set to false');
+
+      // Erzwinge ein Rendering-Update
+      this.requestUpdate();
+      console.log('[DEBUG] _subscribeToChannel - Update requested');
     });
+
+    console.log('[DEBUG] _subscribeToChannel - Handlers registered');
   }
 
   _processEvent(event) {
+    console.log('[DEBUG] _processEvent - Received event:', event);
+    console.log('[DEBUG] _processEvent - Event content:', event.content);
+    console.log('[DEBUG] _processEvent - Event kind:', event.kind);
+    console.log('[DEBUG] _processEvent - Event pubkey:', event.pubkey);
+
     // Prüfe, ob das Event bereits verarbeitet wurde
     if (this.processedEvents.has(event.id)) {
+      console.log('[DEBUG] _processEvent - Event already processed, skipping:', event.id);
       return;
     }
 
     // Füge das Event zur Liste der verarbeiteten Events hinzu
     this.processedEvents.add(event.id);
+    console.log('[DEBUG] _processEvent - Added event to processed events, count:', this.processedEvents.size);
 
     // Füge das Event zur Nachrichtenliste hinzu
     this._addMessage(event);
+    console.log('[DEBUG] _processEvent - Added message to list, count:', this.messages.length);
   }
 
   _addMessage(event) {
+    console.log('[DEBUG] _addMessage - Adding message:', event);
+
     // Füge die Nachricht zur Liste hinzu
-    this.messages = [...this.messages, event].sort((a, b) => a.created_at - b.created_at);
+    const newMessages = [...this.messages, event].sort((a, b) => a.created_at - b.created_at);
+    console.log('[DEBUG] _addMessage - New messages array length:', newMessages.length);
 
     // Begrenze die Anzahl der Nachrichten
-    if (this.messages.length > this.maxMessages) {
-      this.messages = this.messages.slice(this.messages.length - this.maxMessages);
+    if (newMessages.length > this.maxMessages) {
+      console.log('[DEBUG] _addMessage - Limiting messages to max:', this.maxMessages);
+      this.messages = newMessages.slice(newMessages.length - this.maxMessages);
+    } else {
+      this.messages = newMessages;
     }
+
+    console.log('[DEBUG] _addMessage - Final messages array:', this.messages);
+    console.log('[DEBUG] _addMessage - Messages count:', this.messages.length);
+
+    // Erzwinge ein Rendering-Update
+    this.requestUpdate();
   }
 
   _addWelcomeMessage() {
@@ -354,6 +382,11 @@ export class NostrChat extends LitElement {
   }
 
   render() {
+    console.log('[DEBUG] render - messages:', this.messages);
+    console.log('[DEBUG] render - connected:', this.connected);
+    console.log('[DEBUG] render - loading:', this.loading);
+    console.log('[DEBUG] render - error:', this.error);
+
     return html`
       <div class="nostr-chat-container">
         <message-list
@@ -372,6 +405,14 @@ export class NostrChat extends LitElement {
         </input-area>
 
         ${this.error ? html`<div class="error-message">${this.error}</div>` : ''}
+
+        <!-- Debug-Ausgabe -->
+        <div class="debug-info" style="font-size: 10px; color: #999; margin-top: 10px;">
+          <p>Messages: ${this.messages.length}</p>
+          <p>Connected: ${this.connected}</p>
+          <p>Loading: ${this.loading}</p>
+          <p>Public Key: ${this.userPublicKey}</p>
+        </div>
       </div>
     `;
   }

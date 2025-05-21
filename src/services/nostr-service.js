@@ -96,21 +96,55 @@ class RelayPool {
    * @param {Array} data - Nachrichtendaten
    */
   handleMessage(url, data) {
+    console.log('[DEBUG] handleMessage - START - url:', url);
+    console.log('[DEBUG] handleMessage - data:', data);
+
     if (!Array.isArray(data) || data.length < 2) {
+      console.log('[DEBUG] handleMessage - Invalid data format, skipping');
       return;
     }
 
     const [type, subId, ...rest] = data;
+    console.log('[DEBUG] handleMessage - type:', type, 'subId:', subId, 'rest:', rest);
 
     if (type === 'EVENT' && this.subs.has(subId)) {
       const event = rest[0];
-      console.log('[DEBUG] handleMessage - EVENT - subId:', subId, 'event:', event);
-      this.subs.get(subId).emit('event', event);
+      console.log('[DEBUG] handleMessage - EVENT - subId:', subId);
+      console.log('[DEBUG] handleMessage - event:', event);
+      console.log('[DEBUG] handleMessage - event.content:', event.content);
+      console.log('[DEBUG] handleMessage - event.kind:', event.kind);
+      console.log('[DEBUG] handleMessage - event.pubkey:', event.pubkey);
+      console.log('[DEBUG] handleMessage - event.tags:', event.tags);
+
+      // Prüfe, ob die Subscription existiert
+      const sub = this.subs.get(subId);
+      console.log('[DEBUG] handleMessage - subscription:', sub);
+
+      // Emittiere das Event
+      sub.emit('event', event);
+      console.log('[DEBUG] handleMessage - Event emitted');
     } else if (type === 'EOSE' && this.subs.has(subId)) {
       console.log('[DEBUG] handleMessage - EOSE - subId:', subId);
-      this.subs.get(subId).emit('eose');
+
+      // Prüfe, ob die Subscription existiert
+      const sub = this.subs.get(subId);
+      console.log('[DEBUG] handleMessage - subscription:', sub);
+
+      // Emittiere das EOSE-Event
+      sub.emit('eose');
+      console.log('[DEBUG] handleMessage - EOSE emitted');
+    } else if (type === 'OK') {
+      // OK-Nachrichten werden vom Relay gesendet, wenn ein Event veröffentlicht wurde
+      console.log('[DEBUG] handleMessage - OK - event_id:', subId, 'success:', rest[0], 'message:', rest[1]);
+
+      // Wenn die Veröffentlichung fehlgeschlagen ist, geben wir eine Warnung aus
+      if (!rest[0]) {
+        console.warn('[DEBUG] handleMessage - Event publication failed:', rest[1]);
+      }
     } else if (type === 'NOTICE') {
-      console.log(`Notice from relay ${url}: ${rest[0]}`);
+      console.log(`[DEBUG] handleMessage - NOTICE from relay ${url}: ${rest[0]}`);
+    } else {
+      console.log('[DEBUG] handleMessage - Unknown message type or subscription not found:', type, subId);
     }
   }
 
@@ -233,10 +267,6 @@ export function initRelayPool() {
  * @returns {Promise} - Promise, das aufgelöst wird, wenn der Kanal erstellt oder gefunden wurde
  */
 export function createOrFindChannel(relayPool, relays, channelId, userPublicKey, userPrivateKey) {
-  console.log('[DEBUG] createOrFindChannel - START');
-  console.log('[DEBUG] createOrFindChannel - userPrivateKey type:', typeof userPrivateKey);
-  console.log('[DEBUG] createOrFindChannel - userPrivateKey value:', userPrivateKey);
-
   // Fail fast: Prüfe sofort, ob der private Schlüssel leer ist
   if (!userPrivateKey) {
     throw new Error('Private key is empty or undefined in createOrFindChannel');
@@ -244,17 +274,10 @@ export function createOrFindChannel(relayPool, relays, channelId, userPublicKey,
 
   // Stelle sicher, dass der private Schlüssel ein String ist
   const privateKeyStr = String(userPrivateKey);
-  console.log('[DEBUG] createOrFindChannel - privateKeyStr:', privateKeyStr);
 
   return new Promise((resolve, reject) => {
-    console.log('[DEBUG] createOrFindChannel - Creating Promise');
-
     try {
-      console.log('[DEBUG] createOrFindChannel - Checking if relayPool is valid:', relayPool);
-      console.log('[DEBUG] createOrFindChannel - Checking if relays is valid:', relays);
-
       // Erstelle eine Subscription, um nach dem Kanal zu suchen
-      console.log('[DEBUG] createOrFindChannel - Creating subscription');
       const sub = relayPool.sub(relays, [
         {
           kinds: [EVENT_TYPES.CHANNEL_CREATE],
@@ -263,55 +286,38 @@ export function createOrFindChannel(relayPool, relays, channelId, userPublicKey,
         }
       ]);
 
-      console.log('[DEBUG] createOrFindChannel - Subscription created:', sub);
-
       let channelFound = false;
 
       // Event-Handler für gefundene Events
-      console.log('[DEBUG] createOrFindChannel - Registering event handler');
       sub.on('event', (event) => {
-        console.log('[DEBUG] createOrFindChannel - EVENT received - channel found:', event);
         channelFound = true;
         sub.unsub();
         resolve(event);
       });
 
       // Event-Handler für das Ende der Subscription
-      console.log('[DEBUG] createOrFindChannel - Registering eose handler');
       sub.on('eose', () => {
-        console.log('[DEBUG] createOrFindChannel - EOSE received - channelFound:', channelFound);
-
         if (!channelFound) {
-          console.log('[DEBUG] createOrFindChannel - Channel not found, creating new channel');
-          console.log('[DEBUG] createOrFindChannel - privateKeyStr before createChannel:', privateKeyStr);
-
           try {
             // Wenn der Kanal nicht gefunden wurde, erstelle ihn
-            console.log('[DEBUG] createOrFindChannel - Calling createChannel');
             createChannel(relayPool, relays, channelId, userPublicKey, privateKeyStr)
               .then(event => {
-                console.log('[DEBUG] createOrFindChannel - Channel created successfully:', event);
                 resolve(event);
               })
               .catch(error => {
-                console.error('[DEBUG] createOrFindChannel - Error creating channel:', error);
+                console.error('Error creating channel:', error);
                 reject(error);
               });
           } catch (error) {
-            console.error('[DEBUG] createOrFindChannel - Exception in createChannel:', error);
+            console.error('Exception in createChannel:', error);
             reject(error);
           }
-        } else {
-          console.log('[DEBUG] createOrFindChannel - Channel already found, not creating');
         }
 
-        console.log('[DEBUG] createOrFindChannel - Unsubscribing');
         sub.unsub();
       });
-
-      console.log('[DEBUG] createOrFindChannel - Handlers registered');
     } catch (error) {
-      console.error('[DEBUG] createOrFindChannel - Exception in main function:', error);
+      console.error('Exception in createOrFindChannel:', error);
       reject(error);
     }
   });
@@ -327,18 +333,16 @@ export function createOrFindChannel(relayPool, relays, channelId, userPublicKey,
  * @returns {Promise} - Promise, das aufgelöst wird, wenn der Kanal erstellt wurde
  */
 export function createChannel(relayPool, relays, channelId, userPublicKey, userPrivateKey) {
-  console.log('[DEBUG] createChannel - START');
-  console.log('[DEBUG] createChannel - userPrivateKey type:', typeof userPrivateKey);
-  console.log('[DEBUG] createChannel - userPrivateKey value:', userPrivateKey);
-  console.log('[DEBUG] createChannel - userPublicKey:', userPublicKey);
-  console.log('[DEBUG] createChannel - channelId:', channelId);
-  console.log('[DEBUG] createChannel - relays:', relays);
-
   return new Promise((resolve, reject) => {
-    console.log('[DEBUG] createChannel - Creating Promise');
-
     try {
-      console.log('[DEBUG] createChannel - Creating event object');
+      // Prüfe, ob die Parameter gültig sind
+      if (!channelId) {
+        throw new Error('Invalid channelId');
+      }
+
+      if (!userPublicKey) {
+        throw new Error('Invalid userPublicKey');
+      }
 
       // Erstelle das Event
       const event = {
@@ -356,9 +360,6 @@ export function createChannel(relayPool, relays, channelId, userPublicKey, userP
         })
       };
 
-      console.log('[DEBUG] createChannel - Event object created:', event);
-      console.log('[DEBUG] createChannel - userPrivateKey before signEvent:', userPrivateKey);
-
       // Fail fast: Prüfe sofort, ob der private Schlüssel leer ist
       if (!userPrivateKey) {
         throw new Error('Private key is empty or undefined in createChannel');
@@ -366,43 +367,21 @@ export function createChannel(relayPool, relays, channelId, userPublicKey, userP
 
       // Stelle sicher, dass der private Schlüssel ein String ist
       const privateKeyStr = String(userPrivateKey);
-      console.log('[DEBUG] createChannel - privateKeyStr:', privateKeyStr);
 
       try {
-        console.log('[DEBUG] createChannel - Signing event');
         // Signiere das Event
-        event.id = signEvent(event, privateKeyStr);
-        console.log('[DEBUG] createChannel - Event signed, id:', event.id);
+        const signedEvent = signEvent(event, privateKeyStr);
 
-        console.log('[DEBUG] createChannel - Publishing event to relays');
-        // Veröffentliche das Event
-        relayPool.publish(relays, event);
-        console.log('[DEBUG] createChannel - Event published');
+        // Veröffentliche das signierte Event
+        relayPool.publish(relays, signedEvent);
 
-        console.log('[DEBUG] createChannel - Resolving Promise with event');
-        resolve(event);
+        resolve(signedEvent);
       } catch (signError) {
-        console.error('[DEBUG] createChannel - Error signing or publishing event:', signError);
-
-        // Versuche, ein Event ohne Signatur zu erstellen (für Tests)
-        console.log('[DEBUG] createChannel - Trying to create event without signature (for testing)');
-        event.id = 'test-' + Math.random().toString(36).substring(2, 15);
-        event.sig = 'test-signature';
-
-        console.log('[DEBUG] createChannel - Test event created:', event);
-        console.log('[DEBUG] createChannel - Publishing test event');
-
-        try {
-          relayPool.publish(relays, event);
-          console.log('[DEBUG] createChannel - Test event published');
-          resolve(event);
-        } catch (publishError) {
-          console.error('[DEBUG] createChannel - Error publishing test event:', publishError);
-          reject(publishError);
-        }
+        console.error('Error signing or publishing event:', signError);
+        reject(signError);
       }
     } catch (error) {
-      console.error('[DEBUG] createChannel - Error creating channel:', error);
+      console.error('Error creating channel:', error);
       reject(error);
     }
   });
@@ -418,17 +397,50 @@ export function createChannel(relayPool, relays, channelId, userPublicKey, userP
  * @returns {Object} - Subscription-Objekt
  */
 export function subscribeToChannel(relayPool, relays, channelId, userPublicKey, isInitialLoad) {
+  console.log('[DEBUG] subscribeToChannel - START');
+  console.log('[DEBUG] subscribeToChannel - channelId:', channelId);
+  console.log('[DEBUG] subscribeToChannel - userPublicKey:', userPublicKey);
+  console.log('[DEBUG] subscribeToChannel - isInitialLoad:', isInitialLoad);
+  console.log('[DEBUG] subscribeToChannel - relays:', relays);
+
   // Erstelle die Filter
   const filters = [
     {
-      kinds: [EVENT_TYPES.CHANNEL_MESSAGE],
-      '#e': [channelId],
+      kinds: [EVENT_TYPES.CHANNEL_MESSAGE], // 42 für Kanal-Nachrichten
+      '#e': [channelId], // Filtere nach Kanal-ID im e-Tag
       limit: isInitialLoad ? 50 : 0
     }
   ];
 
+  // Debug-Ausgabe der Filter-Struktur
+  console.log('[DEBUG] subscribeToChannel - Filter structure:');
+  console.log('[DEBUG] subscribeToChannel - kinds:', filters[0].kinds);
+  console.log('[DEBUG] subscribeToChannel - #e:', filters[0]['#e']);
+  console.log('[DEBUG] subscribeToChannel - limit:', filters[0].limit);
+
+  // Prüfe, ob die Filter gültig sind
+  if (!channelId) {
+    console.error('[DEBUG] subscribeToChannel - Invalid channelId:', channelId);
+    throw new Error('Invalid channelId');
+  }
+
+  console.log('[DEBUG] subscribeToChannel - filters:', filters);
+
   // Erstelle die Subscription
-  return relayPool.sub(relays, filters);
+  const sub = relayPool.sub(relays, filters);
+  console.log('[DEBUG] subscribeToChannel - subscription created:', sub);
+
+  // Füge Debug-Handler hinzu
+  sub.on('event', (event) => {
+    console.log('[DEBUG] subscribeToChannel - Received event:', event);
+    console.log('[DEBUG] subscribeToChannel - Event content:', event.content);
+  });
+
+  sub.on('eose', () => {
+    console.log('[DEBUG] subscribeToChannel - End of stored events');
+  });
+
+  return sub;
 }
 
 /**
@@ -442,9 +454,6 @@ export function subscribeToChannel(relayPool, relays, channelId, userPublicKey, 
  * @returns {Promise} - Promise, das aufgelöst wird, wenn die Nachricht gesendet wurde
  */
 export function sendMessage(content, userPublicKey, userPrivateKey, channelId, relayPool, relays) {
-  console.log('[DEBUG] sendMessage - userPrivateKey type:', typeof userPrivateKey);
-  console.log('[DEBUG] sendMessage - userPrivateKey value:', userPrivateKey);
-
   return new Promise((resolve, reject) => {
     try {
       if (!content || content.trim() === '') {
@@ -452,19 +461,28 @@ export function sendMessage(content, userPublicKey, userPrivateKey, channelId, r
         return;
       }
 
+      // Prüfe, ob die Parameter gültig sind
+      if (!channelId) {
+        throw new Error('Invalid channelId');
+      }
+
+      if (!userPublicKey) {
+        throw new Error('Invalid userPublicKey');
+      }
+
       // Erstelle das Event
       const event = {
-        kind: EVENT_TYPES.CHANNEL_MESSAGE,
+        kind: EVENT_TYPES.CHANNEL_MESSAGE, // 42 für Kanal-Nachrichten
         pubkey: userPublicKey,
         created_at: Math.floor(Date.now() / 1000),
         tags: [
-          ['e', channelId, '', 'root']
+          // Für Nostr-Kanäle sollte das e-Tag die Kanal-ID enthalten
+          // Laut NIP-28 sollte das Format sein: ['e', <channel_id>, <relay_url>, <marker>]
+          // Aber wir lassen relay_url und marker weg, da sie optional sind
+          ['e', channelId]
         ],
         content: content
       };
-
-      console.log('[DEBUG] sendMessage - event before signing:', event);
-      console.log('[DEBUG] sendMessage - userPrivateKey before signEvent:', userPrivateKey);
 
       // Fail fast: Prüfe sofort, ob der private Schlüssel leer ist
       if (!userPrivateKey) {
@@ -473,15 +491,14 @@ export function sendMessage(content, userPublicKey, userPrivateKey, channelId, r
 
       // Stelle sicher, dass der private Schlüssel ein String ist
       const privateKeyStr = String(userPrivateKey);
-      console.log('[DEBUG] sendMessage - privateKeyStr:', privateKeyStr);
 
       // Signiere das Event
-      event.id = signEvent(event, privateKeyStr);
+      const signedEvent = signEvent(event, privateKeyStr);
 
-      // Veröffentliche das Event
-      relayPool.publish(relays, event);
+      // Veröffentliche das signierte Event
+      relayPool.publish(relays, signedEvent);
 
-      resolve(event);
+      resolve(signedEvent);
     } catch (error) {
       console.error('[DEBUG] sendMessage - error:', error);
       reject(error);
