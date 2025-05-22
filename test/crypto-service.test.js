@@ -28,7 +28,6 @@ describe('Crypto Service', () => {
       const { privateKey, publicKey } = await generateKeyPair();
 
       const event = {
-        id: 'test-id-123',
         kind: 1,
         pubkey: publicKey,
         created_at: Math.floor(Date.now() / 1000),
@@ -37,10 +36,10 @@ describe('Crypto Service', () => {
       };
 
       // Sign the event
-      event.id = signEvent(event, privateKey);
+      const signedEvent = signEvent(event, privateKey);
 
       // Verify the signature
-      const isValid = verifyEvent(event);
+      const isValid = verifyEvent(signedEvent);
 
       expect(isValid).to.be.true;
     });

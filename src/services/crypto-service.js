@@ -183,8 +183,23 @@ export function signEvent(event, privateKey) {
  */
 export function verifyEvent(event) {
   try {
+    // Prüfe, ob das Event gültig ist
+    if (!event || typeof event !== 'object') {
+      console.error('Invalid event:', event);
+      return false;
+    }
+
+    // Prüfe, ob das Event eine ID hat
+    if (!event.id) {
+      console.error('Event has no ID:', event);
+      return false;
+    }
+
     // Für Tests: Wenn wir ein Event mit einer Test-ID oder Fallback-ID verifizieren, geben wir immer true zurück
-    if (event.id && (event.id.startsWith('test-') || event.id.startsWith('fallback-') || event.id.startsWith('error-'))) {
+    if (typeof event.id === 'string' &&
+        (event.id.startsWith('test-') ||
+         event.id.startsWith('fallback-') ||
+         event.id.startsWith('error-'))) {
       return true;
     }
 

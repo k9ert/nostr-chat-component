@@ -21,46 +21,43 @@ export function loadProfileInfo(pubkey, relayPool, relays, callback) {
   }
 
   // Erstelle eine Subscription für Metadaten-Events
-  const sub = relayPool.sub(relays, [
+  const sub = relayPool.subscribe(relays, [
     {
       kinds: [EVENT_TYPES.METADATA],
       authors: [pubkey],
       limit: 1
     }
-  ]);
+  ], {
+    onevent(event) {
+      try {
+        // Versuche, die Profilinformationen zu parsen
+        const profile = JSON.parse(event.content);
 
-  // Event-Handler für neue Events
-  sub.on('event', (event) => {
-    try {
-      // Versuche, die Profilinformationen zu parsen
-      const profile = JSON.parse(event.content);
-      
-      // Speichere die Profilinformationen im Cache
-      profileCache.set(pubkey, profile);
-      
-      // Rufe den Callback mit den Profilinformationen auf
-      callback(profile);
-      
-      // Bereinige den Cache, wenn er zu groß wird
-      if (profileCache.size > MAX_CACHED_PROFILES) {
-        const oldestKey = profileCache.keys().next().value;
-        profileCache.delete(oldestKey);
+        // Speichere die Profilinformationen im Cache
+        profileCache.set(pubkey, profile);
+
+        // Rufe den Callback mit den Profilinformationen auf
+        callback(profile);
+
+        // Bereinige den Cache, wenn er zu groß wird
+        if (profileCache.size > MAX_CACHED_PROFILES) {
+          const oldestKey = profileCache.keys().next().value;
+          profileCache.delete(oldestKey);
+        }
+      } catch (error) {
+        console.error('Error parsing profile info:', error);
+        callback(null);
       }
-    } catch (error) {
-      console.error('Error parsing profile info:', error);
-      callback(null);
-    }
-  });
+    },
+    oneose() {
+      // Wenn keine Profilinformationen gefunden wurden, rufe den Callback mit null auf
+      if (!profileCache.has(pubkey)) {
+        callback(null);
+      }
 
-  // Event-Handler für das Ende der Subscription
-  sub.on('eose', () => {
-    // Wenn keine Profilinformationen gefunden wurden, rufe den Callback mit null auf
-    if (!profileCache.has(pubkey)) {
-      callback(null);
+      // Beende die Subscription
+      sub.close();
     }
-    
-    // Beende die Subscription
-    sub.unsub();
   });
 }
 
@@ -75,18 +72,18 @@ export function getDisplayName(event, profile = null) {
   if (profile) {
     // Verwende den Namen aus dem Profil, falls vorhanden
     if (profile.name) return profile.name;
-    
+
     // Verwende den Anzeigenamen aus dem Profil, falls vorhanden
     if (profile.display_name) return profile.display_name;
   }
-  
+
   // Wenn keine Profilinformationen übergeben wurden, prüfe, ob sie im Cache sind
   if (!profile && profileCache.has(event.pubkey)) {
     const cachedProfile = profileCache.get(event.pubkey);
     if (cachedProfile.name) return cachedProfile.name;
     if (cachedProfile.display_name) return cachedProfile.display_name;
   }
-  
+
   // Wenn kein Name gefunden wurde, verwende die ersten 8 Zeichen des öffentlichen Schlüssels
   return event.pubkey.substring(0, 8) + '...';
 }
@@ -103,13 +100,13 @@ export function getProfilePicture(event, profile = null) {
     // Verwende das Bild aus dem Profil, falls vorhanden
     if (profile.picture) return profile.picture;
   }
-  
+
   // Wenn keine Profilinformationen übergeben wurden, prüfe, ob sie im Cache sind
   if (!profile && profileCache.has(event.pubkey)) {
     const cachedProfile = profileCache.get(event.pubkey);
     if (cachedProfile.picture) return cachedProfile.picture;
   }
-  
+
   // Wenn kein Bild gefunden wurde, gib null zurück
   return null;
 }

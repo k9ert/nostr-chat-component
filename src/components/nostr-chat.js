@@ -234,50 +234,46 @@ export class NostrChat extends LitElement {
 
     // Beende bestehende Subscription
     if (this.subscription) {
-      console.log('[DEBUG] _subscribeToChannel - Unsubscribing from existing subscription');
-      this.subscription.unsub();
+      console.log('[DEBUG] _subscribeToChannel - Closing existing subscription');
+      this.subscription.close();
     }
 
     console.log('[DEBUG] _subscribeToChannel - Channel ID:', this.channel);
 
-    // Abonniere den Kanal
+    // Abonniere den Kanal mit der SimplePool-API
     this.subscription = subscribeToChannel(
       this.relayPool,
       this.relays,
       this.channel,
       this.userPublicKey,
-      true
+      true,
+      {
+        onEvent: (event) => {
+          console.log('[DEBUG] _subscribeToChannel - Event received:', event);
+          this._processEvent(event);
+        },
+        onEose: () => {
+          console.log('[DEBUG] _subscribeToChannel - End of stored events');
+
+          // Füge eine Willkommensnachricht hinzu, wenn keine Nachrichten vorhanden sind
+          if (this.messages.length === 0) {
+            console.log('[DEBUG] _subscribeToChannel - No messages, adding welcome message');
+            this._addWelcomeMessage();
+          } else {
+            console.log('[DEBUG] _subscribeToChannel - Messages found:', this.messages.length);
+          }
+
+          this.loading = false;
+          console.log('[DEBUG] _subscribeToChannel - Loading set to false');
+
+          // Erzwinge ein Rendering-Update
+          this.requestUpdate();
+          console.log('[DEBUG] _subscribeToChannel - Update requested');
+        }
+      }
     );
 
     console.log('[DEBUG] _subscribeToChannel - Subscription created:', this.subscription);
-
-    // Event-Handler für neue Events
-    this.subscription.on('event', (event) => {
-      console.log('[DEBUG] _subscribeToChannel - Event received:', event);
-      this._processEvent(event);
-    });
-
-    // Event-Handler für das Ende der Subscription
-    this.subscription.on('eose', () => {
-      console.log('[DEBUG] _subscribeToChannel - End of stored events');
-
-      // Füge eine Willkommensnachricht hinzu, wenn keine Nachrichten vorhanden sind
-      if (this.messages.length === 0) {
-        console.log('[DEBUG] _subscribeToChannel - No messages, adding welcome message');
-        this._addWelcomeMessage();
-      } else {
-        console.log('[DEBUG] _subscribeToChannel - Messages found:', this.messages.length);
-      }
-
-      this.loading = false;
-      console.log('[DEBUG] _subscribeToChannel - Loading set to false');
-
-      // Erzwinge ein Rendering-Update
-      this.requestUpdate();
-      console.log('[DEBUG] _subscribeToChannel - Update requested');
-    });
-
-    console.log('[DEBUG] _subscribeToChannel - Handlers registered');
   }
 
   _processEvent(event) {
@@ -377,7 +373,7 @@ export class NostrChat extends LitElement {
   _cleanup() {
     // Beende bestehende Subscription
     if (this.subscription) {
-      this.subscription.unsub();
+      this.subscription.close();
     }
   }
 
