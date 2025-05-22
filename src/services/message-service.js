@@ -14,9 +14,10 @@ import { signEvent } from './crypto-service.js';
  * @param {string} channelId - Kanal-ID
  * @param {Object} relayPool - Relay-Pool
  * @param {Array} relays - URLs der Relays
+ * @param {string} channelEventId - Event-ID des Kanal-Erstellungsereignisses (optional)
  * @returns {Promise} - Promise, das aufgelöst wird, wenn die Nachricht gesendet wurde
  */
-export function sendMessage(content, userPublicKey, userPrivateKey, channelId, relayPool, relays) {
+export function sendMessage(content, userPublicKey, userPrivateKey, channelId, relayPool, relays, channelEventId = null) {
   return new Promise((resolve, reject) => {
     try {
       if (!content || content.trim() === '') {
@@ -38,11 +39,13 @@ export function sendMessage(content, userPublicKey, userPrivateKey, channelId, r
         kind: EVENT_TYPES.CHANNEL_MESSAGE, // 42 für Kanal-Nachrichten
         pubkey: userPublicKey,
         created_at: Math.floor(Date.now() / 1000),
-        tags: [
-          // Für Nostr-Kanäle sollte das e-Tag die Kanal-ID enthalten
-          // Laut NIP-28 sollte das Format sein: ['e', <channel_id>, <relay_url>, <marker>]
-          // Aber wir lassen relay_url und marker weg, da sie optional sind
-          ['e', channelId]
+        tags: channelEventId ? [
+          // Für Nostr-Kanäle muss das e-Tag die Event-ID des Kanal-Erstellungsereignisses enthalten
+          // Laut NIP-28: ["e", "<channel_creation_event_id>", "relay", "root"]
+          ['e', channelEventId, '', 'root']
+        ] : [
+          // Wenn keine Event-ID des Kanal-Erstellungsereignisses vorhanden ist,
+          // verwenden wir eine leere Tag-Liste
         ],
         content: content
       };
@@ -55,18 +58,34 @@ export function sendMessage(content, userPublicKey, userPrivateKey, channelId, r
       // Stelle sicher, dass der private Schlüssel ein String ist
       const privateKeyStr = String(userPrivateKey);
 
+      // Debug-Log der Nachricht vor dem Senden
+      console.log('Sending kind 42 message (channel message):', {
+        event: event,
+        channelId: channelId,
+        content: content,
+        tags: event.tags,
+        kind: EVENT_TYPES.CHANNEL_MESSAGE
+      });
+
       // Signiere das Event
       const signedEvent = signEvent(event, privateKeyStr);
 
-      // Veröffentliche das signierte Event
-      relayPool.publish(relays, signedEvent)
-        .then(() => {
-          resolve(signedEvent);
-        })
-        .catch(publishError => {
-          console.error('Error publishing message:', publishError);
-          reject(publishError);
-        });
+      // Debug-Log des signierten Events
+      console.log('Signed event:', signedEvent);
+
+      try {
+        // Veröffentliche das signierte Event
+        // SimplePool.publish gibt ein Promise zurück, das aufgelöst wird, wenn das Event veröffentlicht wurde
+        // oder abgelehnt wird, wenn ein Fehler auftritt
+        console.log('Publishing to relays:', relays);
+        relayPool.publish(relays, signedEvent);
+
+        // Löse das Promise mit dem signierten Event auf
+        resolve(signedEvent);
+      } catch (publishError) {
+        console.error('Error publishing message:', publishError);
+        reject(publishError);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       reject(error);

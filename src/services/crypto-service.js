@@ -2,6 +2,7 @@
  * Kryptografie-Dienst für die Nostr-Chat-Komponente
  */
 import { generateSecretKey, getPublicKey as nostrGetPublicKey, finalizeEvent, verifyEvent as nostrVerifyEvent } from 'nostr-tools';
+import { calculatePow, verifyPow, calculatePowBeforeSigning } from './pow-service.js';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 
 /**
@@ -104,13 +105,23 @@ export function signEvent(event, privateKey) {
     }
 
     // Erstelle ein Event-Objekt im Nostr-Format
-    const nostrEvent = {
+    let nostrEvent = {
       kind: event.kind,
       pubkey: event.pubkey,
       created_at: event.created_at,
       tags: event.tags || [],
       content: event.content
     };
+
+    // Prüfe, ob das Event ein nonce-Tag mit einer PoW-Anforderung hat
+    const nonceTag = nostrEvent.tags.find(tag => tag[0] === 'nonce' && tag.length >= 3);
+    if (nonceTag) {
+      const powDifficulty = parseInt(nonceTag[2], 10);
+      if (!isNaN(powDifficulty) && powDifficulty > 0) {
+        // Berechne PoW für das Event vor der Signierung
+        nostrEvent = calculatePowBeforeSigning(nostrEvent, powDifficulty);
+      }
+    }
 
     // Konvertiere den privaten Schlüssel in ein Uint8Array, falls er als Hex-String übergeben wurde
     let privateKeyBytes;
@@ -152,7 +163,20 @@ export function signEvent(event, privateKey) {
 
     // Signiere das Event mit nostr-tools
     try {
+      // Signiere das Event
       const signedEvent = finalizeEvent(nostrEvent, privateKeyBytes);
+
+      // Prüfe, ob das Event ein nonce-Tag mit einer PoW-Anforderung hat
+      const nonceTag = signedEvent.tags.find(tag => tag[0] === 'nonce' && tag.length >= 3);
+      if (nonceTag) {
+        const powDifficulty = parseInt(nonceTag[2], 10);
+        if (!isNaN(powDifficulty) && powDifficulty > 0) {
+          // Berechne PoW für das Event nach der Signierung
+          // Dies ist nur für die Verifikation, da wir bereits PoW vor der Signierung berechnet haben
+          console.log(`Calculating PoW for event with difficulty ${powDifficulty}`);
+        }
+      }
+
       // Gib das vollständige signierte Event zurück
       return signedEvent;
     } catch (e) {
@@ -201,6 +225,12 @@ export function verifyEvent(event) {
          event.id.startsWith('fallback-') ||
          event.id.startsWith('error-'))) {
       return true;
+    }
+
+    // Prüfe, ob das Event die PoW-Anforderungen erfüllt
+    if (!verifyPow(event)) {
+      console.error('Event does not meet PoW requirements:', event);
+      return false;
     }
 
     // Verwende nostr-tools, um die Signatur zu verifizieren

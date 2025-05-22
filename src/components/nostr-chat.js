@@ -26,8 +26,8 @@ export class NostrChat extends LitElement {
     userPublicKey: { type: String, state: true },
     relayPool: { type: Object, state: true },
     relays: { type: Array, state: true },
-    subscription: { type: Object, state: true },
-    processedEvents: { type: Set, state: true }
+    processedEvents: { type: Set, state: true },
+    channelEventId: { type: String, state: true } // Event-ID des Kanal-Erstellungsereignisses
   };
 
   static styles = allStyles;
@@ -50,8 +50,8 @@ export class NostrChat extends LitElement {
     this.userPublicKey = '';
     this.relayPool = null;
     this.relays = [];
-    this.subscription = null;
     this.processedEvents = new Set();
+    this.channelEventId = null; // Event-ID des Kanal-Erstellungsereignisses
   }
 
   connectedCallback() {
@@ -61,7 +61,7 @@ export class NostrChat extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    this._cleanup();
+    // Keine Aufräumarbeiten mehr nötig, da wir keine Subscription-Referenz mehr speichern
   }
 
   updated(changedProperties) {
@@ -210,7 +210,7 @@ export class NostrChat extends LitElement {
       console.log('[DEBUG] _connectToChannel - privateKeyStr:', privateKeyStr);
 
       // Erstelle oder finde den Kanal
-      await createOrFindChannel(
+      const channelEvent = await createOrFindChannel(
         this.relayPool,
         this.relays,
         this.channel,
@@ -218,8 +218,55 @@ export class NostrChat extends LitElement {
         privateKeyStr
       );
 
-      // Abonniere den Kanal
-      this._subscribeToChannel();
+      // Speichere die Event-ID des Kanal-Erstellungsereignisses
+      if (channelEvent && channelEvent.id) {
+        this.channelEventId = channelEvent.id;
+        console.log('[DEBUG] _connectToChannel - Channel event ID:', this.channelEventId);
+      } else {
+        console.warn('[DEBUG] _connectToChannel - No channel event ID found');
+      }
+
+      // Abonniere den Kanal direkt, ohne Referenz zu speichern
+      subscribeToChannel(
+        this.relayPool,
+        this.relays,
+        this.channel,
+        this.userPublicKey,
+        true,
+        {
+          onEvent: (event) => {
+            console.log('[DEBUG] Channel event received:', event);
+
+            // Prüfe, ob das Event ein e-Tag mit der richtigen Event-ID hat
+            if (this.channelEventId) {
+              const eTag = event.tags.find(tag => tag[0] === 'e');
+              if (eTag && eTag[1] !== this.channelEventId) {
+                console.log('[DEBUG] Event has wrong e-tag, skipping:', event);
+                return;
+              }
+            }
+
+            this._processEvent(event);
+          },
+          onEose: () => {
+            console.log('[DEBUG] End of stored events');
+
+            // Füge eine Willkommensnachricht hinzu, wenn keine Nachrichten vorhanden sind
+            if (this.messages.length === 0) {
+              console.log('[DEBUG] No messages, adding welcome message');
+              this._addWelcomeMessage();
+            } else {
+              console.log('[DEBUG] Messages found:', this.messages.length);
+            }
+
+            this.loading = false;
+            console.log('[DEBUG] Loading set to false');
+
+            // Erzwinge ein Rendering-Update
+            this.requestUpdate();
+          }
+        }
+      );
 
       this.connected = true;
     } catch (error) {
@@ -229,52 +276,7 @@ export class NostrChat extends LitElement {
     }
   }
 
-  _subscribeToChannel() {
-    console.log('[DEBUG] _subscribeToChannel - START');
 
-    // Beende bestehende Subscription
-    if (this.subscription) {
-      console.log('[DEBUG] _subscribeToChannel - Closing existing subscription');
-      this.subscription.close();
-    }
-
-    console.log('[DEBUG] _subscribeToChannel - Channel ID:', this.channel);
-
-    // Abonniere den Kanal mit der SimplePool-API
-    this.subscription = subscribeToChannel(
-      this.relayPool,
-      this.relays,
-      this.channel,
-      this.userPublicKey,
-      true,
-      {
-        onEvent: (event) => {
-          console.log('[DEBUG] _subscribeToChannel - Event received:', event);
-          this._processEvent(event);
-        },
-        onEose: () => {
-          console.log('[DEBUG] _subscribeToChannel - End of stored events');
-
-          // Füge eine Willkommensnachricht hinzu, wenn keine Nachrichten vorhanden sind
-          if (this.messages.length === 0) {
-            console.log('[DEBUG] _subscribeToChannel - No messages, adding welcome message');
-            this._addWelcomeMessage();
-          } else {
-            console.log('[DEBUG] _subscribeToChannel - Messages found:', this.messages.length);
-          }
-
-          this.loading = false;
-          console.log('[DEBUG] _subscribeToChannel - Loading set to false');
-
-          // Erzwinge ein Rendering-Update
-          this.requestUpdate();
-          console.log('[DEBUG] _subscribeToChannel - Update requested');
-        }
-      }
-    );
-
-    console.log('[DEBUG] _subscribeToChannel - Subscription created:', this.subscription);
-  }
 
   _processEvent(event) {
     console.log('[DEBUG] _processEvent - Received event:', event);
@@ -326,7 +328,7 @@ export class NostrChat extends LitElement {
       pubkey: 'system',
       created_at: Math.floor(Date.now() / 1000),
       content: 'Willkommen im Nostr-Chat! Sie können jetzt Nachrichten senden und empfangen.',
-      tags: [['e', this.channel, '', 'root']],
+      tags: this.channelEventId ? [['e', this.channelEventId, '', 'root']] : [],
       kind: 42,
       isSystemMessage: true
     };
@@ -355,7 +357,8 @@ export class NostrChat extends LitElement {
         privateKeyStr,
         this.channel,
         this.relayPool,
-        this.relays
+        this.relays,
+        this.channelEventId // Übergebe die Event-ID des Kanal-Erstellungsereignisses
       );
     } catch (error) {
       console.error('Error sending message:', error);
@@ -370,12 +373,7 @@ export class NostrChat extends LitElement {
     this._connectToChannel();
   }
 
-  _cleanup() {
-    // Beende bestehende Subscription
-    if (this.subscription) {
-      this.subscription.close();
-    }
-  }
+  // Keine _cleanup-Methode mehr nötig, da wir keine Subscription-Referenz mehr speichern
 
   render() {
     console.log('[DEBUG] render - messages:', this.messages);

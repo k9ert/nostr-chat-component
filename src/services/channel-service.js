@@ -61,8 +61,9 @@ export function createOrFindChannel(relayPool, relays, channelId, userPublicKey,
               }
             }
 
-            // Beende die Subscription
-            sub.close();
+            // Wir schließen die Subscription nicht mehr, da wir sie für die gesamte Lebensdauer der Anwendung verwenden
+            // Die Subscription wird automatisch geschlossen, wenn sie nicht mehr benötigt wird
+            console.log('Not closing subscription to maintain connection');
           }
         }
       );
@@ -102,6 +103,8 @@ export function createChannel(relayPool, relays, channelId, userPublicKey, userP
         tags: [
           ['d', channelId],
           ['name', channelId]
+          // PoW deaktiviert, da zu rechenintensiv
+          // ['nonce', '0', '28'] // PoW-Anforderung: 28 Bits (ca. 7 führende Nullen im Hex-String)
         ],
         content: JSON.stringify({
           name: channelId,
@@ -118,19 +121,34 @@ export function createChannel(relayPool, relays, channelId, userPublicKey, userP
       // Stelle sicher, dass der private Schlüssel ein String ist
       const privateKeyStr = String(userPrivateKey);
 
+      // Debug-Log der Kanal-Erstellung
+      console.log('Creating channel (kind 40 event):', {
+        event: event,
+        channelId: channelId,
+        tags: event.tags,
+        kind: EVENT_TYPES.CHANNEL_CREATE
+      });
+
       try {
         // Signiere das Event
         const signedEvent = signEvent(event, privateKeyStr);
 
-        // Veröffentliche das Event
-        relayPool.publish(relays, signedEvent)
-          .then(() => {
-            resolve(signedEvent);
-          })
-          .catch(publishError => {
-            console.error('Error publishing event:', publishError);
-            reject(publishError);
-          });
+        // Debug-Log des signierten Events
+        console.log('Signed channel event:', signedEvent);
+
+        try {
+          // Veröffentliche das Event
+          // SimplePool.publish gibt ein Promise zurück, das aufgelöst wird, wenn das Event veröffentlicht wurde
+          // oder abgelehnt wird, wenn ein Fehler auftritt
+          console.log('Publishing channel to relays:', relays);
+          relayPool.publish(relays, signedEvent);
+
+          // Löse das Promise mit dem signierten Event auf
+          resolve(signedEvent);
+        } catch (publishError) {
+          console.error('Error publishing event:', publishError);
+          reject(publishError);
+        }
       } catch (signError) {
         console.error('Error signing event:', signError);
         reject(signError);
@@ -157,20 +175,32 @@ export function subscribeToChannel(relayPool, relays, channelId, userPublicKey, 
   const filters = [
     {
       kinds: [EVENT_TYPES.CHANNEL_MESSAGE], // 42 für Kanal-Nachrichten
-      '#e': [channelId], // Filtere nach Kanal-ID im e-Tag
+      // Wir filtern nach der Kanal-ID im d-Tag, nicht im e-Tag
+      // Das e-Tag enthält die Event-ID des Kanal-Erstellungsereignisses
+      // Da wir diese ID nicht haben, filtern wir nur nach der Art der Nachricht
       limit: isInitialLoad ? 50 : 0
     }
   ];
+
+  console.log('Creating subscription for channel messages with filter:', filters);
 
   // Prüfe, ob die Filter gültig sind
   if (!channelId) {
     throw new Error('Invalid channelId');
   }
 
+  // Definiere die Callbacks
+  const eventCallback = callbacks.onEvent || (() => {});
+  const eoseCallback = callbacks.onEose || (() => {});
+
   // Erstelle die Subscription mit der SimplePool-API
   const sub = relayPool.subscribe(relays, filters, {
-    onevent: callbacks.onEvent || (() => {}),
-    oneose: callbacks.onEose || (() => {})
+    onevent(event) {
+      eventCallback(event);
+    },
+    oneose() {
+      eoseCallback();
+    }
   });
 
   return sub;

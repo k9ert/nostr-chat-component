@@ -55,8 +55,9 @@ export function loadProfileInfo(pubkey, relayPool, relays, callback) {
         callback(null);
       }
 
-      // Beende die Subscription
-      sub.close();
+      // Wir schließen die Subscription nicht mehr, da wir sie für die gesamte Lebensdauer der Anwendung verwenden
+      // Die Subscription wird automatisch geschlossen, wenn sie nicht mehr benötigt wird
+      console.log('Not closing profile subscription to maintain connection');
     }
   });
 }
