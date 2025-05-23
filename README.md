@@ -2,6 +2,10 @@
 
 Eine wiederverwendbare Chat-Komponente für Nostr, die mit Web Components (Lit) gebaut wurde.
 
+## Demo
+
+Eine Live-Demo ist verfügbar unter: [https://kim-dev-git.github.io/nostr-chat-component/](https://kim-dev-git.github.io/nostr-chat-component/)
+
 ## Features
 
 - Einfache Integration in jede Webseite
@@ -60,7 +64,7 @@ Einfach die Komponente in Ihre HTML-Seite einbinden:
 
 ```bash
 # Repository klonen
-git clone https://github.com/yourusername/nostr-chat-component.git
+git clone https://github.com/k9ert/nostr-chat-component.git
 cd nostr-chat-component
 
 # Abhängigkeiten installieren

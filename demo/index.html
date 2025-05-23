@@ -5,7 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nostr Chat Component Demo</title>
     <link rel="stylesheet" href="styles.css">
-    <script type="module" src="../src/components/nostr-chat.js"></script>
+    <!-- Dynamisch den richtigen Pfad wählen basierend auf der Umgebung -->
+    <script>
+        // Prüfe, ob wir auf GitHub Pages sind oder lokal entwickeln
+        const scriptPath = window.location.hostname.includes('github.io')
+            ? 'nostr-chat.js'  // Auf GitHub Pages
+            : '../src/components/nostr-chat.js';  // Lokale Entwicklung
+
+        // Erstelle das Script-Element dynamisch
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = scriptPath;
+        document.head.appendChild(script);
+    </script>
 </head>
 <body>
     <header>
@@ -74,7 +86,7 @@
     </main>
 
     <footer>
-        <p>Nostr Chat Component - <a href="https://github.com/yourusername/nostr-chat-component">GitHub</a></p>
+        <p>Nostr Chat Component - <a href="https://github.com/kim-dev-git/nostr-chat-component">GitHub</a></p>
     </footer>
 
     <script>

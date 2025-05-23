@@ -1,0 +1,56 @@
+name: Deploy Demo to GitHub Pages
+
+on:
+  # Führe den Workflow bei Push auf den main-Branch aus
+  push:
+    branches: [ main ]
+
+  # Erlaube manuelle Ausführung des Workflows
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout des Repositories
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # Node.js-Umgebung einrichten
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      # Abhängigkeiten installieren
+      - name: Install Dependencies
+        run: npm ci
+
+      # Build-Prozess ausführen
+      - name: Build
+        run: |
+          npm run build
+          # Erstelle ein temporäres Verzeichnis für die Veröffentlichung
+          mkdir -p gh-pages
+          # Kopiere die Demo-Dateien
+          cp -r demo/* gh-pages/
+          # Kopiere die kompilierten JS-Dateien
+          cp dist/nostr-chat.js gh-pages/
+          cp dist/nostr-chat.min.js gh-pages/
+          # Erstelle ein Verzeichnis für die Abhängigkeiten
+          mkdir -p gh-pages/node_modules
+          # Kopiere nur die benötigten Abhängigkeiten
+          cp -r node_modules/lit gh-pages/node_modules/
+          cp -r node_modules/nostr-tools gh-pages/node_modules/
+          cp -r node_modules/@noble gh-pages/node_modules/
+          # Erstelle eine .nojekyll-Datei, um sicherzustellen, dass GitHub Pages keine Jekyll-Verarbeitung durchführt
+          touch gh-pages/.nojekyll
+
+      # Auf GitHub Pages veröffentlichen
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: gh-pages # Das Verzeichnis, das veröffentlicht werden soll
+          branch: gh-pages # Der Branch, auf dem die Seite veröffentlicht wird
+          clean: true # Löscht vorhandene Dateien im gh-pages-Branch
