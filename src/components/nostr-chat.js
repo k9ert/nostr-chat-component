@@ -236,16 +236,6 @@ export class NostrChat extends LitElement {
         {
           onEvent: (event) => {
             console.log('[DEBUG] Channel event received:', event);
-
-            // Prüfe, ob das Event ein e-Tag mit der richtigen Event-ID hat
-            if (this.channelEventId) {
-              const eTag = event.tags.find(tag => tag[0] === 'e');
-              if (eTag && eTag[1] !== this.channelEventId) {
-                console.log('[DEBUG] Event has wrong e-tag, skipping:', event);
-                return;
-              }
-            }
-
             this._processEvent(event);
           },
           onEose: () => {
@@ -265,7 +255,8 @@ export class NostrChat extends LitElement {
             // Erzwinge ein Rendering-Update
             this.requestUpdate();
           }
-        }
+        },
+        this.channelEventId // Übergebe die channelEventId als Parameter
       );
 
       this.connected = true;

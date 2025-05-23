@@ -16,9 +16,21 @@ import { signEvent } from './crypto-service.js';
  * @returns {Promise} - Promise, das aufgelöst wird, wenn der Kanal erstellt oder gefunden wurde
  */
 export function createOrFindChannel(relayPool, relays, channelId, userPublicKey, userPrivateKey) {
-  // Fail fast: Prüfe sofort, ob der private Schlüssel leer ist
+  // Fail fast: Prüfe sofort, ob die Parameter gültig sind
   if (!userPrivateKey) {
     throw new Error('Private key is empty or undefined in createOrFindChannel');
+  }
+  if (!userPublicKey) {
+    throw new Error('Public key is empty or undefined in createOrFindChannel');
+  }
+  if (!channelId) {
+    throw new Error('Channel ID is empty or undefined in createOrFindChannel');
+  }
+  if (!relayPool) {
+    throw new Error('Relay pool is empty or undefined in createOrFindChannel');
+  }
+  if (!relays || !Array.isArray(relays) || relays.length === 0) {
+    throw new Error('Relays must be a non-empty array in createOrFindChannel');
   }
 
   // Stelle sicher, dass der private Schlüssel ein String ist
@@ -26,44 +38,63 @@ export function createOrFindChannel(relayPool, relays, channelId, userPublicKey,
 
   return new Promise((resolve, reject) => {
     try {
+      console.log(`Searching for channel with ID: ${channelId} on relays:`, relays);
+
+      // Erstelle einen Filter für die Suche nach dem Kanal
+      const filter = {
+        kinds: [EVENT_TYPES.CHANNEL_CREATE],
+        '#d': [channelId], // Verwende #d, da wir in createChannel auch d-Tags verwenden
+        limit: 1
+      };
+
+      console.log('Using filter:', filter);
+
       let channelFound = false;
+      let timeoutId = null;
 
       // Erstelle eine Subscription, um nach dem Kanal zu suchen
       const sub = relayPool.subscribe(
         relays,
-        [
-          {
-            kinds: [EVENT_TYPES.CHANNEL_CREATE],
-            '#d': [channelId],
-            limit: 1
-          }
-        ],
+        filter, // Einzelner Filter, kein Array
         {
           onevent(event) {
+            console.log('Found existing channel:', event);
             channelFound = true;
+
+            // Wenn wir einen Timeout gesetzt haben, löschen wir ihn
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+              timeoutId = null;
+            }
+
             resolve(event);
           },
           oneose() {
-            if (!channelFound) {
-              try {
-                // Wenn der Kanal nicht gefunden wurde, erstelle ihn
-                createChannel(relayPool, relays, channelId, userPublicKey, privateKeyStr)
-                  .then(event => {
-                    resolve(event);
-                  })
-                  .catch(error => {
-                    console.error('Error creating channel:', error);
-                    reject(error);
-                  });
-              } catch (error) {
-                console.error('Exception in createChannel:', error);
-                reject(error);
-              }
-            }
+            console.log('End of stored events for channel search');
 
-            // Wir schließen die Subscription nicht mehr, da wir sie für die gesamte Lebensdauer der Anwendung verwenden
-            // Die Subscription wird automatisch geschlossen, wenn sie nicht mehr benötigt wird
-            console.log('Not closing subscription to maintain connection');
+            // Wenn der Kanal nicht gefunden wurde, warten wir noch einen Moment
+            // und erstellen ihn dann, falls er immer noch nicht gefunden wurde
+            if (!channelFound) {
+              console.log('Channel not found in initial search, waiting briefly before creating...');
+
+              // Setze einen Timeout, um dem Relay Zeit zu geben, das Event zu verarbeiten
+              timeoutId = setTimeout(() => {
+                // Prüfe noch einmal, ob der Kanal gefunden wurde
+                if (!channelFound) {
+                  console.log('Channel still not found, creating new channel');
+
+                  // Wenn der Kanal nicht gefunden wurde, erstelle ihn
+                  createChannel(relayPool, relays, channelId, userPublicKey, privateKeyStr)
+                    .then(event => {
+                      resolve(event);
+                    })
+                    .catch(error => {
+                      console.error('Error creating channel:', error);
+                      reject(error);
+                    });
+                }
+              }, 1000); // Warte 1 Sekunde
+            }
           }
         }
       );
@@ -168,21 +199,25 @@ export function createChannel(relayPool, relays, channelId, userPublicKey, userP
  * @param {string} userPublicKey - Öffentlicher Schlüssel des Benutzers
  * @param {boolean} isInitialLoad - Gibt an, ob es sich um das initiale Laden handelt
  * @param {Object} callbacks - Callback-Funktionen für Events
+ * @param {string} [channelEventId] - Event-ID des Kanal-Erstellungsereignisses (optional)
  * @returns {Object} - Subscription-Objekt
  */
-export function subscribeToChannel(relayPool, relays, channelId, userPublicKey, isInitialLoad, callbacks = {}) {
-  // Erstelle die Filter
-  const filters = [
-    {
-      kinds: [EVENT_TYPES.CHANNEL_MESSAGE], // 42 für Kanal-Nachrichten
-      // Wir filtern nach der Kanal-ID im d-Tag, nicht im e-Tag
-      // Das e-Tag enthält die Event-ID des Kanal-Erstellungsereignisses
-      // Da wir diese ID nicht haben, filtern wir nur nach der Art der Nachricht
-      limit: isInitialLoad ? 50 : 0
-    }
-  ];
+export function subscribeToChannel(relayPool, relays, channelId, userPublicKey, isInitialLoad, callbacks = {}, channelEventId = null) {
+  // Erstelle den Filter (als einzelnes Objekt, nicht als Array)
+  const filter = {
+    kinds: [EVENT_TYPES.CHANNEL_MESSAGE], // 42 für Kanal-Nachrichten
+    limit: isInitialLoad ? 50 : 0
+  };
 
-  console.log('Creating subscription for channel messages with filter:', filters);
+  // Wenn wir eine channelEventId haben, fügen wir sie als e-Tag-Filter hinzu
+  if (channelEventId) {
+    filter['#e'] = [channelEventId];
+    console.log(`Adding channel event ID filter for ${channelEventId}`);
+  } else {
+    console.log('No channel event ID provided, using broader filter');
+  }
+
+  console.log('Creating subscription for channel messages with filter:', filter);
 
   // Prüfe, ob die Filter gültig sind
   if (!channelId) {
@@ -194,8 +229,17 @@ export function subscribeToChannel(relayPool, relays, channelId, userPublicKey, 
   const eoseCallback = callbacks.onEose || (() => {});
 
   // Erstelle die Subscription mit der SimplePool-API
-  const sub = relayPool.subscribe(relays, filters, {
+  const sub = relayPool.subscribe(relays, filter, {
     onevent(event) {
+      // Zusätzliche Prüfung: Wenn wir eine channelEventId haben, prüfen wir, ob das Event ein e-Tag mit dieser ID hat
+      if (channelEventId) {
+        const eTag = event.tags.find(tag => tag[0] === 'e');
+        if (!eTag || eTag[1] !== channelEventId) {
+          console.log(`Skipping event with wrong e-tag: ${JSON.stringify(eTag)}, expected: ${channelEventId}`);
+          return;
+        }
+      }
+
       eventCallback(event);
     },
     oneose() {

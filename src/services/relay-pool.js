@@ -78,7 +78,9 @@ class EnhancedSimplePool extends SimplePool {
       }
     };
 
-    return super.subscribe(relays, filters, enhancedCallbacks);
+    var sub =  super.subscribe(relays, filters, enhancedCallbacks);
+    console.log('Subscription result:', sub);
+    return sub;
   }
 }
 
@@ -94,7 +96,9 @@ let relayPoolInstance = null;
  */
 export function initRelayPool() {
   if (!relayPoolInstance) {
+    
     relayPoolInstance = new EnhancedSimplePool();
+    console.log('Initializing relay pool',relayPoolInstance);
   }
   return relayPoolInstance;
 }
