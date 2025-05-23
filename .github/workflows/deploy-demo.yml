@@ -1,5 +1,7 @@
 name: Test, Build and Deploy Demo to GitHub Pages
 
+permissions:
+  contents: write
 on:
   # Führe den Workflow bei Push auf den main-Branch aus
   push:
