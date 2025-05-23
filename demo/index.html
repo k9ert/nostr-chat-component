@@ -5,18 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nostr Chat Component Demo</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Lade die Umgebungsvariablen, falls vorhanden -->
+    <script src="env.js" onerror="window.IS_GITHUB_PAGES = false;"></script>
+
     <!-- Dynamisch den richtigen Pfad wählen basierend auf der Umgebung -->
     <script>
-        // Prüfe, ob wir auf GitHub Pages sind oder lokal entwickeln
-        const scriptPath = window.location.hostname.includes('github.io')
-            ? 'nostr-chat.js'  // Auf GitHub Pages
-            : '../src/components/nostr-chat.js';  // Lokale Entwicklung
+        // Warte einen Moment, um sicherzustellen, dass env.js geladen wurde
+        setTimeout(() => {
+            // Prüfe, ob wir auf GitHub Pages sind oder lokal entwickeln
+            const scriptPath = window.IS_GITHUB_PAGES
+                ? 'nostr-chat.js'  // Auf GitHub Pages
+                : '../src/components/nostr-chat.js';  // Lokale Entwicklung
 
-        // Erstelle das Script-Element dynamisch
-        const script = document.createElement('script');
-        script.type = 'module';
-        script.src = scriptPath;
-        document.head.appendChild(script);
+            console.log('Loading script from:', scriptPath, 'IS_GITHUB_PAGES:', window.IS_GITHUB_PAGES);
+
+            // Erstelle das Script-Element dynamisch
+            const script = document.createElement('script');
+            script.type = 'module';
+            script.src = scriptPath;
+            document.head.appendChild(script);
+        }, 10);
     </script>
 </head>
 <body>

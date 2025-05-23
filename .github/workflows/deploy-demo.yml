@@ -1,4 +1,4 @@
-name: Deploy Demo to GitHub Pages
+name: Test, Build and Deploy Demo to GitHub Pages
 
 on:
   # Führe den Workflow bei Push auf den main-Branch aus
@@ -9,7 +9,32 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout des Repositories
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # Node.js-Umgebung einrichten
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      # Abhängigkeiten installieren
+      - name: Install Dependencies
+        run: npm ci
+
+      # Tests ausführen
+      - name: Run Tests
+        run: npm test
+
   build-and-deploy:
+    name: Build and Deploy
+    needs: test # Dieser Job wird nur ausgeführt, wenn der test-Job erfolgreich war
     runs-on: ubuntu-latest
     steps:
       # Checkout des Repositories
@@ -46,6 +71,8 @@ jobs:
           cp -r node_modules/@noble gh-pages/node_modules/
           # Erstelle eine .nojekyll-Datei, um sicherzustellen, dass GitHub Pages keine Jekyll-Verarbeitung durchführt
           touch gh-pages/.nojekyll
+          # Erstelle eine Datei, die anzeigt, dass wir auf GitHub Pages sind
+          echo "window.IS_GITHUB_PAGES = true;" > gh-pages/env.js
 
       # Auf GitHub Pages veröffentlichen
       - name: Deploy to GitHub Pages
