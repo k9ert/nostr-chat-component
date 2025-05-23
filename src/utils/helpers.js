@@ -116,27 +116,19 @@ export function processMessageContent(content) {
   // Ersetze Zeilenumbrüche durch <br>
   let processedContent = content.replace(/\n/g, '<br>');
 
-  // Prüfe auf HTML-Tags für Bilder
-  const htmlTagRegex = /<a\s+href="(https?:\/\/[^"]+)"[^>]*>.*?<\/a>/gi;
-  processedContent = processedContent.replace(
-    htmlTagRegex,
-    function(match, url) {
-      // Prüfe, ob es sich um ein Bild handelt
-      if (isImageUrl(url)) {
-        return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a><br><img src="${url}" alt="Bild" class="message-image">`;
-      } else {
-        return match; // Behalte den ursprünglichen HTML-Tag bei
-      }
-    }
+  // Markiere HTML-Tags, damit sie nicht doppelt verarbeitet werden
+  let processedWithMarkers = processedContent.replace(
+    /(<a\s+[^>]*>.*?<\/a>)/gi,
+    '###LINK_MARKER###$1###LINK_MARKER###'
   );
 
-  // Ersetze URLs durch klickbare Links
-  processedContent = processedContent.replace(
-    /(https?:\/\/[^\s<>"]+)/g, // Verbesserte Regex, die HTML-Tags ausschließt
+  // Ersetze URLs durch klickbare Links, aber nur außerhalb der Marker
+  processedWithMarkers = processedWithMarkers.replace(
+    /(https?:\/\/[^\s<>"]+)/g,
     function(url) {
-      // Überspringe URLs, die bereits in einem Link sind
-      const isInLink = /<a\s+[^>]*href=[^>]*>.*?<\/a>/i.test(url);
-      if (isInLink) {
+      // Überspringe URLs, die bereits in einem Link sind (zwischen Markern)
+      if (processedWithMarkers.indexOf(`###LINK_MARKER###${url}`) !== -1 ||
+          processedWithMarkers.indexOf(`${url}###LINK_MARKER###`) !== -1) {
         return url;
       }
 
@@ -145,6 +137,22 @@ export function processMessageContent(content) {
         return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a><br><img src="${url}" alt="Bild" class="message-image">`;
       } else {
         return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+      }
+    }
+  );
+
+  // Entferne die Marker
+  processedContent = processedWithMarkers.replace(/###LINK_MARKER###/g, '');
+
+  // Prüfe auf HTML-Tags für Bilder (nach der URL-Verarbeitung)
+  processedContent = processedContent.replace(
+    /<a\s+href="(https?:\/\/[^"]+)"[^>]*>(.*?)<\/a>/gi,
+    function(match, url, text) {
+      // Prüfe, ob es sich um ein Bild handelt und ob es noch nicht als Bild dargestellt wird
+      if (isImageUrl(url) && !match.includes('<img')) {
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a><br><img src="${url}" alt="Bild" class="message-image">`;
+      } else {
+        return match; // Behalte den ursprünglichen HTML-Tag bei
       }
     }
   );
