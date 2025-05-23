@@ -59,6 +59,11 @@ export const baseStyles = css`
 
 // Chat-Container-Styles
 export const chatContainerStyles = css`
+  :host {
+    display: block;
+    height: 100%;
+  }
+
   .nostr-chat-container {
     display: flex;
     flex-direction: column;
@@ -71,6 +76,14 @@ export const chatContainerStyles = css`
 
 // Nachrichtenlisten-Styles
 export const messageListStyles = css`
+  :host {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0; /* Wichtig für Flexbox-Scrolling */
+    overflow: hidden;
+  }
+
   .message-list {
     flex: 1;
     overflow-y: auto;
@@ -78,6 +91,8 @@ export const messageListStyles = css`
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    height: 100%;
+    position: relative;
   }
 
   .message-list::-webkit-scrollbar {
@@ -91,6 +106,19 @@ export const messageListStyles = css`
   .message-list::-webkit-scrollbar-thumb {
     background-color: var(--border-color);
     border-radius: 3px;
+  }
+
+  .loading-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.7);
+    z-index: 10;
   }
 `;
 
@@ -267,6 +295,11 @@ export const messageItemStyles = css`
 
 // Eingabebereich-Styles
 export const inputAreaStyles = css`
+  :host {
+    display: block;
+    flex-shrink: 0; /* Verhindert, dass der Eingabebereich schrumpft */
+  }
+
   .input-area {
     display: flex;
     padding: 0.75rem;
@@ -327,19 +360,7 @@ export const inputAreaStyles = css`
 
 // Lade-Indikator-Styles
 export const loadingIndicatorStyles = css`
-  .loading-indicator {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
-    background-color: rgba(255, 255, 255, 0.8);
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 10;
-  }
+  /* Lade-Indikator-Styles wurden in messageListStyles verschoben */
 
   .spinner {
     width: 40px;

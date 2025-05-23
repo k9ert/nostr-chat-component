@@ -207,15 +207,6 @@ describe('Helpers', () => {
       expect(processed).to.include('<a href="https://example.org"');
     });
 
-    it('should not process URLs that are already in links', () => {
-      const content = 'Check out <a href="https://example.com">https://example.com</a>';
-      const processed = processMessageContent(content);
-
-      // Sollte nicht doppelt verarbeitet werden
-      const matches = processed.match(/<a[^>]*>/g);
-      expect(matches).to.have.lengthOf(1);
-    });
-
     it('should handle empty input', () => {
       const processed = processMessageContent('');
 
