@@ -10,6 +10,7 @@
     "build": "rollup -c",
     "test": "web-test-runner --config web-test-runner.config.js",
     "test:watch": "web-test-runner --config web-test-runner.config.js --watch",
+    "test:playwright": "playwright test",
     "lint": "eslint src/**/*.js",
     "format": "prettier --write src/**/*.js",
     "start": "npm run dev"
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@open-wc/testing": "^3.1.7",
+    "@playwright/test": "^1.42.1",
     "@rollup/plugin-node-resolve": "^15.0.2",
     "@rollup/plugin-terser": "^0.4.0",
     "@web/dev-server": "^0.1.35",

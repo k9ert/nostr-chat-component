@@ -21,16 +21,26 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: 'lts/*'
           cache: 'npm'
 
       # Abhängigkeiten installieren
       - name: Install Dependencies
         run: npm ci
 
-      # Tests ausführen
-      - name: Run Tests
+      # Tests ausführen (Web Test Runner)
+      - name: Run Web Tests
         run: npm test
+
+      # Playwright-Tests ausführen
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright Tests
+        run: npm run test:playwright
+        env:
+          CI: true
+          NODE_ENV: test
 
   build-and-deploy:
     name: Build and Deploy
