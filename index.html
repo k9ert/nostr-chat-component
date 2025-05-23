@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nostr Chat Component Demo</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Lade die Umgebungsvariablen, falls vorhanden -->
+    <script src="env.js" onerror="window.IS_GITHUB_PAGES = false;"></script>
+
+    <!-- Dynamisch den richtigen Pfad wählen basierend auf der Umgebung -->
+    <script>
+        // Warte einen Moment, um sicherzustellen, dass env.js geladen wurde
+        setTimeout(() => {
+            // Prüfe, ob wir auf GitHub Pages sind oder lokal entwickeln
+            const scriptPath = window.IS_GITHUB_PAGES
+                ? 'nostr-chat.js'  // Auf GitHub Pages
+                : '../src/components/nostr-chat.js';  // Lokale Entwicklung
+
+            console.log('Loading script from:', scriptPath, 'IS_GITHUB_PAGES:', window.IS_GITHUB_PAGES);
+
+            // Erstelle das Script-Element dynamisch
+            const script = document.createElement('script');
+            script.type = 'module';
+            script.src = scriptPath;
+            document.head.appendChild(script);
+        }, 10);
+    </script>
+</head>
+<body>
+    <header>
+        <h1>Nostr Chat Component</h1>
+        <p>Eine wiederverwendbare Chat-Komponente für Nostr</p>
+    </header>
+
+    <main>
+        <section class="demo-section">
+            <h2>Live Demo</h2>
+            <div class="demo-container">
+                <nostr-chat
+                    relay="wss://relay.damus.io"
+                    channel="nostr-chat-component-demo"
+                    theme="light"
+                    show-avatars="true"
+                    max-messages="50">
+                </nostr-chat>
+            </div>
+        </section>
+
+        <section class="usage-section">
+            <h2>Verwendung</h2>
+            <pre><code>&lt;script type="module" src="path/to/nostr-chat.js"&gt;&lt;/script&gt;
+
+&lt;nostr-chat
+  relay="wss://relay.damus.io"
+  channel="nostr-chat-component-demo"
+  theme="light"
+  show-avatars="true"
+  max-messages="50"&gt;
+&lt;/nostr-chat&gt;</code></pre>
+        </section>
+
+        <section class="config-section">
+            <h2>Konfiguration</h2>
+            <div class="config-form">
+                <div class="form-group">
+                    <label for="relay-input">Relay URL:</label>
+                    <input type="text" id="relay-input" value="wss://relay.damus.io">
+                </div>
+                <div class="form-group">
+                    <label for="channel-input">Channel ID:</label>
+                    <input type="text" id="channel-input" value="nostr-chat-component-test-id-unique-1">
+                </div>
+                <div class="form-group">
+                    <label for="theme-select">Theme:</label>
+                    <select id="theme-select">
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="avatars-checkbox" checked>
+                        Show Avatars
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label for="max-messages-input">Max Messages:</label>
+                    <input type="number" id="max-messages-input" value="50" min="10" max="200">
+                </div>
+                <button id="update-config-btn">Update Configuration</button>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Nostr Chat Component - <a href="https://github.com/kim-dev-git/nostr-chat-component">GitHub</a></p>
+    </footer>
+
+    <script>
+        document.getElementById('update-config-btn').addEventListener('click', function() {
+            const chat = document.querySelector('nostr-chat');
+            chat.setAttribute('relay', document.getElementById('relay-input').value);
+            chat.setAttribute('channel', document.getElementById('channel-input').value);
+            chat.setAttribute('theme', document.getElementById('theme-select').value);
+            chat.setAttribute('show-avatars', document.getElementById('avatars-checkbox').checked);
+            chat.setAttribute('max-messages', document.getElementById('max-messages-input').value);
+        });
+    </script>
+</body>
+</html>
