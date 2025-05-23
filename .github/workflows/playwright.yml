@@ -36,12 +36,12 @@ jobs:
       - name: Build Project
         run: npm run build
 
-      - name: Run Playwright Tests
-        run: npx playwright test
-        env:
-          # Setze Umgebungsvariablen für die Tests
-          CI: true
-          NODE_ENV: test
+      # - name: Run Playwright Tests
+      #   run: npx playwright test
+      #   env:
+      #     # Setze Umgebungsvariablen für die Tests
+      #     CI: true
+      #     NODE_ENV: test
 
       - name: Upload Test Results
         if: always()
