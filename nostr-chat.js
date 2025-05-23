@@ -104,6 +104,11 @@ const baseStyles = i$2`
 
 // Chat-Container-Styles
 const chatContainerStyles = i$2`
+  :host {
+    display: block;
+    height: 100%;
+  }
+
   .nostr-chat-container {
     display: flex;
     flex-direction: column;
@@ -116,6 +121,14 @@ const chatContainerStyles = i$2`
 
 // Nachrichtenlisten-Styles
 const messageListStyles = i$2`
+  :host {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0; /* Wichtig für Flexbox-Scrolling */
+    overflow: hidden;
+  }
+
   .message-list {
     flex: 1;
     overflow-y: auto;
@@ -123,6 +136,8 @@ const messageListStyles = i$2`
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    height: 100%;
+    position: relative;
   }
 
   .message-list::-webkit-scrollbar {
@@ -136,6 +151,19 @@ const messageListStyles = i$2`
   .message-list::-webkit-scrollbar-thumb {
     background-color: var(--border-color);
     border-radius: 3px;
+  }
+
+  .loading-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.7);
+    z-index: 10;
   }
 `;
 
@@ -312,6 +340,11 @@ const messageItemStyles = i$2`
 
 // Eingabebereich-Styles
 const inputAreaStyles = i$2`
+  :host {
+    display: block;
+    flex-shrink: 0; /* Verhindert, dass der Eingabebereich schrumpft */
+  }
+
   .input-area {
     display: flex;
     padding: 0.75rem;
@@ -372,19 +405,7 @@ const inputAreaStyles = i$2`
 
 // Lade-Indikator-Styles
 const loadingIndicatorStyles = i$2`
-  .loading-indicator {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
-    background-color: rgba(255, 255, 255, 0.8);
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 10;
-  }
+  /* Lade-Indikator-Styles wurden in messageListStyles verschoben */
 
   .spinner {
     width: 40px;
@@ -8042,27 +8063,19 @@ function processMessageContent(content) {
   // Ersetze Zeilenumbrüche durch <br>
   let processedContent = content.replace(/\n/g, '<br>');
 
-  // Prüfe auf HTML-Tags für Bilder
-  const htmlTagRegex = /<a\s+href="(https?:\/\/[^"]+)"[^>]*>.*?<\/a>/gi;
-  processedContent = processedContent.replace(
-    htmlTagRegex,
-    function(match, url) {
-      // Prüfe, ob es sich um ein Bild handelt
-      if (isImageUrl(url)) {
-        return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a><br><img src="${url}" alt="Bild" class="message-image">`;
-      } else {
-        return match; // Behalte den ursprünglichen HTML-Tag bei
-      }
-    }
+  // Markiere HTML-Tags, damit sie nicht doppelt verarbeitet werden
+  let processedWithMarkers = processedContent.replace(
+    /(<a\s+[^>]*>.*?<\/a>)/gi,
+    '###LINK_MARKER###$1###LINK_MARKER###'
   );
 
-  // Ersetze URLs durch klickbare Links
-  processedContent = processedContent.replace(
-    /(https?:\/\/[^\s<>"]+)/g, // Verbesserte Regex, die HTML-Tags ausschließt
+  // Ersetze URLs durch klickbare Links, aber nur außerhalb der Marker
+  processedWithMarkers = processedWithMarkers.replace(
+    /(https?:\/\/[^\s<>"]+)/g,
     function(url) {
-      // Überspringe URLs, die bereits in einem Link sind
-      const isInLink = /<a\s+[^>]*href=[^>]*>.*?<\/a>/i.test(url);
-      if (isInLink) {
+      // Überspringe URLs, die bereits in einem Link sind (zwischen Markern)
+      if (processedWithMarkers.indexOf(`###LINK_MARKER###${url}`) !== -1 ||
+          processedWithMarkers.indexOf(`${url}###LINK_MARKER###`) !== -1) {
         return url;
       }
 
@@ -8071,6 +8084,22 @@ function processMessageContent(content) {
         return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a><br><img src="${url}" alt="Bild" class="message-image">`;
       } else {
         return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+      }
+    }
+  );
+
+  // Entferne die Marker
+  processedContent = processedWithMarkers.replace(/###LINK_MARKER###/g, '');
+
+  // Prüfe auf HTML-Tags für Bilder (nach der URL-Verarbeitung)
+  processedContent = processedContent.replace(
+    /<a\s+href="(https?:\/\/[^"]+)"[^>]*>(.*?)<\/a>/gi,
+    function(match, url, text) {
+      // Prüfe, ob es sich um ein Bild handelt und ob es noch nicht als Bild dargestellt wird
+      if (isImageUrl(url) && !match.includes('<img')) {
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a><br><img src="${url}" alt="Bild" class="message-image">`;
+      } else {
+        return match; // Behalte den ursprünglichen HTML-Tag bei
       }
     }
   );
