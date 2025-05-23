@@ -28,9 +28,9 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      # # Playwright-Browser installieren (wird auch von web-test-runner verwendet)
-      # - name: Install Playwright Browsers
-      #   run: npx playwright install --with-deps chromium
+      # Playwright-Browser installieren (wird auch von web-test-runner verwendet)
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
 
       # Tests ausführen (Web Test Runner)
       - name: Run Web Tests
